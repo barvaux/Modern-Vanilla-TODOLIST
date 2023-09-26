@@ -10,6 +10,7 @@ export default class  {
         DB.setApiURL(data.apiURL);
         this.elt = document.querySelector(data.domELT);
         this.todos = [];
+        this.newTodoInput = null;
         this.loadTodos(); 
     }
     
@@ -21,10 +22,51 @@ export default class  {
 
     render () {
         this.elt.innerHTML = getTemplate(this);
+        this.activateElements();
+        this.renderNotCompletedTodosCount();
     }
 
     renderNotCompletedTodosCount () {
-        document.querySelector('.todo-count strong').innerText = this.todos.filter(todo => !todo.completed).length;
+        this.elt.querySelector('.todo-count strong').innerText = 
+            this.todos.filter((todo) => !todo.completed).length;
     }
-    
+
+    activateElements() {
+        this.newTodoInput = this.elt.querySelector('.new-todo');
+        this.newTodoInput.addEventListener('keyup',  (e) => {
+            if (e.key === 'Enter' && this.newTodoInput.value !== ''){
+                this.add();
+            } 
+        });
+    }
+
+    add () {
+        // 1. Ajout de la todo dans le this.todos
+            const todo = {
+                id: new Date(),
+                content: this.newTodoInput.value,
+                completed: false
+                };
+            const newTodo = new Todo(todo);
+            this.todos.unshift(newTodo);
+        // 2. Ajout de la todo dans le DOM
+                // this.elt.querySelector('.todo-list').innerHTML = 
+                // newTodo.render() + this.elt.querySelector('.todo-list').innerHTML;
+
+                // Créer l'élément
+                // Mettre le render dedans
+                // faire un insertBefore
+                const newTodoElement = document.createElement('div');
+                document.querySelector('.todo-list').insertBefore(newTodoElement,document.querySelector('.todo-list').children[0]);
+                newTodoElement.outerHTML = newTodo.render();
+
+        // 3. Ajout de la todo dans l'API
+                DB.addOne(todo);
+
+            // 4. Je vide l'input
+            this.newTodoInput.value = '';
+            // 5. Je recompte les not completed
+            this.renderNotCompletedTodosCount();
+    }
+
 }

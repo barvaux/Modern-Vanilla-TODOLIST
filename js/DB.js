@@ -9,4 +9,13 @@ export default class {
         return await reponse.json();
     }
 
+
+    static async addOne (data){
+        const reponse = await fetch(this.apiURL + "/todos", {
+            method: 'POST',
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+        return await reponse.json();
+    }
 }
