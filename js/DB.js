@@ -18,4 +18,15 @@ export default class {
         });
         return await reponse.json();
     }
+
+    static async updateComplete(todoId, isCompleted) {
+        const response = await fetch(`${this.apiURL}/todos/${todoId}`, {
+            method: 'PUT', // mettre à jour la tâche
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed: isCompleted })
+        });
+        return await response.json();
+    }
+    
+    
 }
