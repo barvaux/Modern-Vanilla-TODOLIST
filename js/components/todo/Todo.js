@@ -1,75 +1,130 @@
-import getTemplate from './template';
-import DB from '../../DB'; // Assurez-vous d'importer DB depuis le bon chemin
+import getTemplate from './template.js';
+import './styles.scss';
+import DB from "../../DB.js";
 
-export default class {
-    constructor(data) {
-        this.id = data.id;
-        this.content = data.content;
-        this.completed = data.completed;
-        this.createdAt = data.createdAt;
+export default class Todo {
+  // Constructeur de la classe Todo
+  constructor(data) {
+    this.id = data.id;
+    this.content = data.content;
+    this.completed = data.completed;
+    this.createdAt = data.createdAt;
+  }
+
+  // Méthode pour afficher un todo
+  render(el) {
+    el.insertAdjacentHTML('beforeend', getTemplate(this));
+    const newTodo = el.lastElementChild;
+
+    // Ajout d'un écouteur d'événement pour le changement d'état du todo
+    const checkbox = newTodo.querySelector('.toggle');
+    if (checkbox) {
+      checkbox.addEventListener('change', this.toggleCompleted.bind(this));
+    }
+    
+    // Ajout d'un écouteur d'événement pour la suppression du todo
+    const deleteButton = newTodo.querySelector('.destroy');
+    if (deleteButton) {
+      deleteButton.addEventListener('click', this.deleteTodo.bind(this));
+    }
+    
+    // Ajout d'un écouteur d'événement pour l'édition du contenu du todo
+    const label = newTodo.querySelector('.content');
+    if (label) {
+      label.addEventListener('dblclick', this.editTodo.bind(this));
+    }
+  }
+
+  // Méthode pour changer l'état d'un todo
+  async toggleCompleted(e) {
+    this.completed = e.target.checked;
+    const todoElement = e.target.closest('li');
+
+    try {
+      await DB.update(this.id, { completed: this.completed });
+
+      if (this.completed) {
+        todoElement.classList.add('completed');
+      } else {
+        todoElement.classList.remove('completed');
+      }
+    } catch (error) {
+      console.error('Failed to update todo', error);
+    }
+    this.updateCount();
+  }
+
+  // Méthode pour supprimer un todo
+  async deleteTodo(e) {
+    await DB.delete(this.id);
+    const todoElement = e.target.closest('li');
+    if (todoElement) {
+        todoElement.remove();
     }
 
-    render() {
-        return getTemplate(this);
+    const index = this.todoListInstance.todos.indexOf(this);
+    if (index > -1) {
+        this.todoListInstance.todos.splice(index, 1);
     }
 
-    activateElements() {
-        const toggleElements = this.element.querySelectorAll('.toggle');
-        toggleElements.forEach(toggle => {
-            toggle.addEventListener('change', () => {
-                this.toggleComplete();
-            });
-        });
+    this.updateCount();
+  }
 
-        // Ajoutez un gestionnaire d'événements pour le bouton de suppression
-        const deleteButton = this.element.querySelector('.destroy');
-        deleteButton.addEventListener('click', () => {
-            this.delete();
-        });
+  // Méthode pour mettre à jour le contenu d'un todo
+  async updateContent(e) {
+    this.updateTask = e.target.content;
+    const todoElement = e.target.closest('li');
+
+    try {
+      await DB.update(this.id, { content: this.content });
+    } catch (error) {
+      console.error('Failed to update todo', error);
     }
+    this.updateCount();
+  }
 
-    toggleComplete() {
-        this.completed = !this.completed;
-        this.updateView(); // Mettez à jour la vue pour refléter le nouvel état de complétion
+  // Méthode pour éditer un todo
+  editTodo(e) {
+    const label = e.target;
+    const listItem = label.closest('li');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = this.content;
+    input.className = 'edit'; 
+    input.addEventListener('blur', this.updateTodo.bind(this));
+    input.addEventListener('keyup', (e) => {
+      if (e.code === 'Enter' && input.value.trim() !== '') {
+        input.blur();
+      }
+    });
+    listItem.appendChild(input);
+    listItem.classList.add('editing');
+    input.focus();
+}
 
-        // Appelez la méthode de l'API pour mettre à jour l'état dans l'API
-        DB.updateComplete(this.id, this.completed)
-            .then(response => {
-                // Gérer la réponse de l'API si nécessaire
-            })
-            .catch(error => {
-                console.error("Erreur lors de la mise à jour de l'état de complétion dans l'API:", error);
-            });
+  // Méthode pour mettre à jour un todo après édition
+  async updateTodo(e) {
+    const input = e.target;
+    const newContent = input.value.trim();
+    const listItem = input.closest('li');
+    const label = listItem.querySelector('.content');
+    label.textContent = newContent;
+    listItem.removeChild(input);
+    listItem.classList.remove('editing');
+
+    try {
+      await DB.update(this.id, { content: newContent });
+      this.content = newContent;
+    } catch (error) {
+      console.error('Failed to update todo', error);
     }
+}
 
-    delete() {
-        this.deleteOneById(this.id); // Appelez la méthode de suppression de la tâche
-    }
+updateCount() {
+  const event = new Event('updateCounter');
+  document.dispatchEvent(event);
+}
 
-    // deleteOneById(todoId) {
-    //     // Implémentez la logique de suppression ici
-    //     // Par exemple, supprimez la tâche du DOM
-    //     const todoElement = document.querySelector(`li[data-id="${todoId}"]`);
-    //     if (todoElement) {
-    //         todoElement.remove();
-    //     }
 
-    //     // Appelez la méthode de l'API pour supprimer la tâche de l'API
-    //     DB.deleteOneById(todoId)
-    //         .then(response => {
-    //             // Gérer la réponse de l'API si nécessaire
-    //         })
-    //         .catch(error => {
-    //             console.error("Erreur lors de la suppression de la tâche dans l'API:", error);
-    //         });
-    // }
 
-    updateView() {
-        const labelElement = this.element.querySelector('label');
-        if (this.completed) {
-            labelElement.style.textDecoration = 'line-through';
-        } else {
-            labelElement.style.textDecoration = 'none';
-        }
-    }
 }

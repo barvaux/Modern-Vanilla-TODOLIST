@@ -1,116 +1,141 @@
-import DB from "../../DB";
-import Todo from "../todo/Todo";
 import getTemplate from './template.js';
+import './styles.scss';
+import DB from "../../DB.js";
+import Todo from "../todo/Todo.js";
 
+
+// Définition de la classe TodoList
 export default class TodoList {
+  
   constructor(data) {
-    DB.setApiURL(data.apiURL);
-    this.elt = document.querySelector(data.domELT);
+    // Configuration de l'URL de l'API à partir des données fournies
+    DB.setApiURL(data.url);
+
+    // Sélection de l'élément HTML spécifié par data.el
+    this.el = document.querySelector(data.el);
+
+    // Initialisation des propriétés pour stocker des éléments DOM et des listes de tâches
+    this.todo_list = null;
+    this.new_todo = null;
     this.todos = [];
-    this.newTodoInput = null;
+
+    // Chargement des tâches depuis la base de données
     this.loadTodos();
+   // Écoute des événements de mise à jour du compteur de tâches
+    document.addEventListener('updateCounter', () => this.renderTodoCount());
   }
 
+  // Méthode asynchrone pour charger les tâches depuis la base de données
   async loadTodos() {
+    // Récupération de toutes les tâches depuis la base de données
     const todos = await DB.findAll();
-    this.todos = todos.map(todo => new Todo(todo));
+
+    // Création d'instances de la classe Todo pour chaque tâche
+    this.todos = todos.map(todo => {
+      const todoInstance = new Todo(todo);
+
+      // Association des instances de Todo à cette instance de TodoList
+      todoInstance.todoListInstance = this;
+      return todoInstance;
+    });
+
+    // Affichage des tâches
     this.render();
   }
 
+  // Méthode pour afficher la liste de tâches
   render() {
-    this.elt.innerHTML = getTemplate(this);
+    this.el.innerHTML = getTemplate(this);
+    this.todo_list = this.el.querySelector(".todo-list");
+    this.todos.forEach((todo) => {
+      todo.render(this.todo_list);
+    });
     this.activateElements();
-    this.renderNotCompletedTodosCount();
+    this.renderTodoCount();
   }
 
-  renderNotCompletedTodosCount() {
-    this.elt.querySelector('.todo-count strong').innerText =
-      this.todos.filter(todo => !todo.completed).length;
+  // Méthode pour mettre à jour le compteur de tâches
+  renderTodoCount() {
+    this.el.querySelector(".todo-count strong").innerText = 
+      this.todos.filter((todo) => !todo.completed).length;
   }
 
+  
   activateElements() {
-    this.newTodoInput = this.elt.querySelector('.new-todo');
-    this.newTodoInput.addEventListener('keyup', e => {
-      if (e.key === 'Enter' && this.newTodoInput.value !== '') {
-        this.add();
-      }
-    });
+    // Sélection des éléments interactifs et ajout des gestionnaires d'événements
+    this.new_todo = this.el.querySelector('.new-todo');
+    this.clearCompletedButton = this.el.querySelector('.clear-completed');
+    this.filterAll = this.el.querySelector('.filters a[href="#/"]');
+    this.filterActive = this.el.querySelector('.filters a[href="#/active"]');
+    this.filterCompleted = this.el.querySelector('.filters a[href="#/completed"]');
 
-    // Ajoutez l'écouteur d'événement pour la case à cocher ici
-    this.elt.addEventListener('click', e => {
-      if (e.target.matches('.toggle')) {
-        const todoId = e.target.closest('li').getAttribute('data-id');
-        this.toggleComplete(todoId);
+ 
+    // Gestionnaire d'événement pour l'ajout de nouvelles tâches
+    this.new_todo.onkeyup = (e) => {
+      if(e.code === "Enter" && this.new_todo.value != '') {
+        this.addTodo();
       }
-    });
-  }
-
-  add() {
-    const todo = {
-      id: new Date(),
-      content: this.newTodoInput.value,
-      completed: false,
     };
-    const newTodo = new Todo(todo);
-    this.todos.unshift(newTodo);
 
-    const newTodoElement = document.createElement('div');
-    newTodoElement.innerHTML = newTodo.render();
+    // Gestionnaire d'événement pour le nettoyage des tâches complétées
+    this.clearCompletedButton.addEventListener('click', this.clearCompletedTodos.bind(this));
 
-    // Ajoutez la classe .toggle à la case à cocher
-    const toggleElement = newTodoElement.querySelector('.toggle');
-    toggleElement.classList.add('toggle');
-
-    document
-      .querySelector('.todo-list')
-      .insertBefore(newTodoElement, document.querySelector('.todo-list').children[0]);
-
-    DB.addOne(todo);
-
-    this.newTodoInput.value = '';
-    this.renderNotCompletedTodosCount();
+   // Gestionnaires d'événements pour le filtrage des tâches
+    this.filterAll.addEventListener('click', () => this.filterTodos('all'));
+    this.filterActive.addEventListener('click', () => this.filterTodos('active'));
+    this.filterCompleted.addEventListener('click', () => this.filterTodos('completed'));
   }
 
-  toggleComplete(todoId) {
-    const todo = this.todos.find(todo => todo.id === todoId);
+  // Méthode asynchrone pour ajouter une nouvelle tâche
+  async addTodo() {
+    const todoData = await DB.addOne({
+      content: this.new_todo.value,
+      completed: false
+    });
+    const newTodoInstance = new Todo(todoData);
+    newTodoInstance.todoListInstance = this;
+    this.todos.push(newTodoInstance);
+    newTodoInstance.render(this.todo_list);
+    this.new_todo.value = "";
+    this.renderTodoCount();
+  }
 
-    if (todo) {
-      todo.completed = !todo.completed;
-
-      const todoElement = document.querySelector(`li[data-id="${todo.id}"]`);
-      const labelElement = todoElement.querySelector('label');
-
-      if (todo.completed) {
-        labelElement.style.textDecoration = 'line-through';
-      } else {
-        labelElement.style.textDecoration = 'none';
-      }
-
-      DB.updateComplete(todo.id, todo.completed); // Utilisez la méthode correcte pour mettre à jour la complétion
-      this.renderNotCompletedTodosCount();
+  // Méthode asynchrone pour nettoyer les tâches complétées
+  async clearCompletedTodos() {
+    const completedTodos = this.todos.filter(todo => todo.completed);
+    for (let todo of completedTodos) {
+        await DB.delete(todo.id); 
+        const index = this.todos.indexOf(todo);
+        if (index > -1) {
+            this.todos.splice(index, 1); 
+        }
     }
-  }
+    this.render(); 
+    this.renderTodoCount()
+}
 
-  // deleteOneById(todoId) {
-  //   // Trouver l'index de la tâche avec le todoId
-  //   const todoIndex = this.todos.findIndex(todo => todo.id === todoId);
-  
-  //   if (todoIndex !== -1) {
-  //     // Supprimer la tâche de la liste this.todos
-  //     this.todos.splice(todoIndex, 1);
-  
-  //     // Supprimer la tâche du DOM
-  //     const todoElement = this.elt.querySelector(`li[data-id="${todoId}"]`);
-  //     if (todoElement) {
-  //       todoElement.remove();
-  //     }
-  
-  //     // Supprimer la tâche de l'API
-  //     DB.deleteOneById(todoId);
-  
-  //     // Mettre à jour le compteur de tâches non complétées
-  //     this.renderNotCompletedTodosCount();
-  //   }
-  // }
-  
+// Méthode pour filtrer les tâches en fonction du type de filtre
+filterTodos(filterType) {
+  const allTodos = this.el.querySelectorAll('.todo-list li');
+  const filters = this.el.querySelectorAll('.filters a');
+  filters.forEach(filter => filter.classList.remove('selected'));
+
+  allTodos.forEach(todo => {
+      const isCompleted = todo.classList.contains('completed');
+      switch (filterType) {
+          case 'all':
+              todo.style.display = '';
+              this.el.querySelector('.filters a[href="#/"]').classList.add('selected');
+              break;
+          case 'active':
+              todo.style.display = isCompleted ? 'none' : '';
+              this.el.querySelector('.filters a[href="#/active"]').classList.add('selected');
+              break;
+          case 'completed':
+              todo.style.display = isCompleted ? '' : 'none';
+              this.el.querySelector('.filters a[href="#/completed"]').classList.add('selected');
+              break;
+      }
+  });
+}
 }

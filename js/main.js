@@ -6,6 +6,6 @@ import TodoList from './components/todoList/TodoList.js';
 // et l'URL de l'API à utiliser: https://6505bf24ef808d3c66f066f6.mockapi.io
 
 new TodoList ({
-    apiURL: "https://6505bf24ef808d3c66f066f6.mockapi.io",
-    domELT: "#app"
+    url: "https://6505bf24ef808d3c66f066f6.mockapi.io",
+    el: "#app"
 });
