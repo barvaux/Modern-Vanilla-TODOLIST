@@ -1,12 +1,11 @@
 import getTemplate from './template.js';
-import './styles.scss';
 import DB from '../../DB.js';
 
 // Définition de la classe Todo
 export default class Todo {
   // Constructeur de la classe Todo
   constructor(data) {
-    // Initialisation des propriétés du todo à partir des données fournies
+    // Initialise les propriétés du todo à partir des données fournies
     this.id = data.id;
     this.content = data.content;
     this.completed = data.completed;
@@ -47,14 +46,12 @@ export default class Todo {
       await DB.update(this.id, { completed: this.completed });
 
       // Met à jour les styles en conséquence
-      if (this.completed) {
-        todoElement.classList.add('completed');
-      } else {
-        todoElement.classList.remove('completed');
-      }
+      todoElement.classList.toggle('completed', this.completed);
     } catch (error) {
       console.error('Échec de la mise à jour du todo', error);
     }
+
+    // Met à jour le compteur
     this.updateCount();
   }
 
@@ -63,6 +60,7 @@ export default class Todo {
     // Supprime le todo de la base de données
     await DB.delete(this.id);
     const todoElement = e.target.closest('li');
+
     if (todoElement) {
       todoElement.remove();
     }
@@ -78,15 +76,16 @@ export default class Todo {
   }
 
   // Méthode pour mettre à jour le contenu d'une todo
-  async updateContent(e) {
-    this.updateTask = e.target.content;
-    const todoElement = e.target.closest('li');
-
+  async updateContent(newContent) {
+    // Met à jour le contenu de la todo dans la base de données
     try {
-      await DB.update(this.id, { content: this.content });
+      await DB.update(this.id, { content: newContent });
+      this.content = newContent;
     } catch (error) {
       console.error('Échec de la mise à jour du todo', error);
     }
+
+    // Met à jour le compteur
     this.updateCount();
   }
 
@@ -95,21 +94,25 @@ export default class Todo {
     const label = e.target;
     const listItem = label.closest('li');
     const input = document.createElement('input');
+
     input.type = 'text';
     input.value = this.content;
     input.className = 'edit';
+
+    // Gère la fin de l'édition et la mise à jour du contenu
     input.addEventListener('blur', this.updateTodo.bind(this));
     input.addEventListener('keyup', (e) => {
       if (e.code === 'Enter' && input.value.trim() !== '') {
         input.blur();
       }
     });
+
     listItem.appendChild(input);
     listItem.classList.add('editing');
     input.focus();
   }
 
-  // Méthode pour mettre à jour une todo après l'edit
+  // Méthode pour mettre à jour une todo après l'édition
   async updateTodo(e) {
     const input = e.target;
     const newContent = input.value.trim();
@@ -119,17 +122,15 @@ export default class Todo {
     listItem.removeChild(input);
     listItem.classList.remove('editing');
 
-    try {
-      await DB.update(this.id, { content: newContent });
-      this.content = newContent;
-    } catch (error) {
-      console.error('Échec de la mise à jour du todo', error);
-    }
+    // Met à jour le contenu de la todo dans la base de données
+    this.updateContent(newContent);
   }
 
   // Méthode pour mettre à jour le compteur
   updateCount() {
+    // Crée un événement pour signaler la mise à jour du compteur
     const event = new Event('updateCounter');
+    // Diffuse l'événement à l'application
     document.dispatchEvent(event);
   }
 }
